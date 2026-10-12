@@ -133,50 +133,8 @@
               <span class="mx-auto text-[11px] text-[var(--text-muted)]">پیش‌نمایش برگه استعلام —
                 <span class="text-[var(--accent)] font-bold">نمای سه‌بعدی تعاملی</span></span>
             </div>
-            <div class="p-6 bg-white relative">
-              <svg viewBox="0 0 900 520" class="w-full relative z-10">
-                <rect x="8" y="8" width="884" height="504" fill="none" stroke="#1d3a6e" stroke-width="3" />
-                <rect x="16" y="16" width="868" height="496" fill="none" stroke="#1d3a6e" stroke-width="1" />
-                <rect x="0" y="0" width="900" height="42" fill="#1d3a6e" />
-                <text x="450" y="27" text-anchor="middle" fill="#fff" font-size="15" font-weight="700" font-family="Vazirmatn, Tahoma">
-                  سامانه استعلام — برگه استعلام کاربری
-                </text>
-                <g>
-                  <polygon points="300,140 520,110 560,300 360,350 250,250" fill="rgba(29,78,216,0.12)" stroke="#1d4ed8" stroke-width="2.5" />
-                  <circle cx="300" cy="140" r="4" fill="#1d4ed8" />
-                  <circle cx="520" cy="110" r="4" fill="#1d4ed8" />
-                  <circle cx="560" cy="300" r="4" fill="#1d4ed8" />
-                  <circle cx="360" cy="350" r="4" fill="#1d4ed8" />
-                  <circle cx="250" cy="250" r="4" fill="#1d4ed8" />
-                  <text x="292" y="128" fill="#111" font-size="14" font-weight="700" font-family="Tahoma">A</text>
-                  <text x="514" y="98" fill="#111" font-size="14" font-weight="700" font-family="Tahoma">B</text>
-                  <text x="556" y="290" fill="#111" font-size="14" font-weight="700" font-family="Tahoma">C</text>
-                  <text x="352" y="362" fill="#111" font-size="14" font-weight="700" font-family="Tahoma">D</text>
-                  <text x="240" y="262" fill="#111" font-size="14" font-weight="700" font-family="Tahoma">E</text>
-                </g>
-                <g stroke="#7a7a7a" stroke-width="1.4" opacity="0.35">
-                  <line x1="90" y1="180" x2="840" y2="180" />
-                  <line x1="90" y1="220" x2="840" y2="220" />
-                  <line x1="90" y1="260" x2="840" y2="260" />
-                  <line x1="90" y1="300" x2="840" y2="300" />
-                  <line x1="140" y1="90" x2="140" y2="390" />
-                  <line x1="240" y1="90" x2="240" y2="390" />
-                  <line x1="340" y1="90" x2="340" y2="390" />
-                  <line x1="440" y1="90" x2="440" y2="390" />
-                  <line x1="540" y1="90" x2="540" y2="390" />
-                  <line x1="640" y1="90" x2="640" y2="390" />
-                  <line x1="740" y1="90" x2="740" y2="390" />
-                </g>
-                <rect x="70" y="410" width="760" height="78" fill="none" stroke="#1d3a6e" stroke-width="1.5" />
-                <rect x="70" y="410" width="760" height="22" fill="#1d3a6e" />
-                <text x="820" y="425" fill="#fff" font-size="11" font-family="Vazirmatn, Tahoma" text-anchor="start">نام: مثال</text>
-                <text x="450" y="425" fill="#fff" font-size="11" font-family="Vazirmatn, Tahoma" text-anchor="middle">کاربری: مسکونی</text>
-                <text x="80" y="425" fill="#fff" font-size="11" font-family="Vazirmatn, Tahoma" text-anchor="end">تاریخ: ۱۴۰۳</text>
-                <text x="820" y="450" fill="#333" font-size="10" font-family="Vazirmatn, Tahoma" text-anchor="start">تصویر ماهواره‌ای</text>
-                <text x="450" y="450" fill="#333" font-size="10" font-family="Vazirmatn, Tahoma" text-anchor="middle">نقشه خیابان</text>
-                <text x="80" y="450" fill="#333" font-size="10" font-family="Vazirmatn, Tahoma" text-anchor="end">آدرس: ...</text>
-                <text x="450" y="472" fill="#a33" font-size="10" font-family="Vazirmatn, Tahoma" text-anchor="middle">این استعلام رسمی نیست — برای اخذ استعلام رسمی به شهرداری مراجعه کنید</text>
-              </svg>
+            <div class="p-3 sm:p-5 bg-white relative text-right">
+              <SheetView :geometry="demoGeometry" :form="demoForm" :shots="demoShots" />
               <div ref="glare" class="glare"></div>
             </div>
           </div>
@@ -258,8 +216,65 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from "vue";
+import SheetView from "./SheetView.vue";
 
 defineEmits(["start"]);
+
+// داده نمونه برای نمایش برگه واقعی استعلام داخل موکاپ سه‌بعدی
+const demoGeometry = {
+  type: "polygon",
+  points: [
+    { lng: 51.4198, lat: 35.7142 },
+    { lng: 51.4231, lat: 35.7138 },
+    { lng: 51.4238, lat: 35.7111 },
+    { lng: 51.4205, lat: 35.7102 },
+    { lng: 51.4189, lat: 35.7121 },
+  ],
+  karbari: "مسکونی",
+  zones: ["مسکونی"],
+  areaM2: 1250,
+  center: { lng: 51.4212, lat: 35.7123 },
+};
+const demoForm = { name: "ملک نمونه", address: "تهران، خیابان نمونه، پلاک ۱۲" };
+
+function svgURI(svg) {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+// تصاویر نمایشی (نقشه خیابان و ماهواره‌ای) — فقط برای موکاپ لندینگ
+const demoShots = {
+  street: svgURI(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='900' height='512' viewBox='0 0 900 512'>` +
+      `<rect width='900' height='512' fill='#e9edea'/>` +
+      `<rect x='0' y='0' width='220' height='512' fill='#dfe6dd'/>` +
+      `<rect x='640' y='330' width='260' height='182' fill='#cfe3f5'/>` +
+      `<rect x='620' y='60' width='180' height='140' fill='#cfe8cf'/>` +
+      `<g stroke='#ffffff' stroke-linecap='round'>` +
+      `<line x1='0' y1='120' x2='900' y2='100' stroke-width='26'/>` +
+      `<line x1='0' y1='300' x2='900' y2='330' stroke-width='30'/>` +
+      `<line x1='250' y1='0' x2='270' y2='512' stroke-width='22'/>` +
+      `<line x1='520' y1='0' x2='500' y2='512' stroke-width='22'/>` +
+      `<line x1='0' y1='430' x2='900' y2='420' stroke-width='18'/></g>` +
+      `<g stroke='#f7c948' stroke-width='3' stroke-dasharray='12 10'>` +
+      `<line x1='0' y1='120' x2='900' y2='100'/>` +
+      `<line x1='0' y1='300' x2='900' y2='330'/></g>` +
+      `<polygon points='330,180 470,160 500,290 380,320 310,250' fill='rgba(255,0,0,0.18)' stroke='#ff0000' stroke-width='5'/>` +
+      `<circle cx='405' cy='240' r='12' fill='#ff0000' stroke='#fff' stroke-width='5'/>` +
+      `</svg>`,
+  ),
+  satellite: svgURI(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='600' height='512' viewBox='0 0 600 512'>` +
+      `<rect width='600' height='512' fill='#445232'/>` +
+      `<rect x='40' y='30' width='180' height='140' fill='#4e5e3a'/>` +
+      `<rect x='380' y='300' width='200' height='180' fill='#39452a'/>` +
+      `<rect x='200' y='200' width='120' height='90' fill='#5a6a42'/>` +
+      `<rect x='0' y='380' width='600' height='40' fill='#6b6f66'/>` +
+      `<line x1='0' y1='150' x2='600' y2='170' stroke='#7a7a72' stroke-width='10'/>` +
+      `<line x1='300' y1='0' x2='290' y2='512' stroke='#7a7a72' stroke-width='10'/>` +
+      `<polygon points='220,190 330,175 350,280 250,300 205,245' fill='rgba(255,0,0,0.22)' stroke='#ff0000' stroke-width='5'/>` +
+      `<circle cx='277' cy='238' r='11' fill='#ff0000' stroke='#fff' stroke-width='5'/>` +
+      `</svg>`,
+  ),
+};
 
 const steps = [
   { title: "ترسیم و اطلاعات", desc: "نقطه بگذارید یا پلیگان بکشید؛ نام و آدرس را وارد کنید تا کاربری نمایش داده شود." },
