@@ -5,6 +5,24 @@
 const MAP_IR_KEY = import.meta.env.VITE_MAP_IR_KEY || ''
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
+// کلید map.ir از نوع JWT است و تاریخ انقضا دارد؛ اگر منقضی شده باشد هر
+// درخواست 401 می‌دهد و کنسول را پر از «Failed to load resource: 401»
+// می‌کند. قبل از صدا زدن، انقضا را چک کن و اگر گذشته بود اصلاً صدا نزن
+// (مستقیم می‌رویم سراغ mapbox).
+function isJwtExpired(token) {
+  try {
+    const parts = String(token).split('.')
+    if (parts.length !== 3) return false
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (!payload.exp) return false
+    // کمی حاشیه (۶۰ ثانیه) برای اختلاف ساعت
+    return payload.exp * 1000 < Date.now() + 60000
+  } catch {
+    return false
+  }
+}
+const MAP_IR_EXPIRED = MAP_IR_KEY ? isJwtExpired(MAP_IR_KEY) : false
+
 function withTimeout(ms) {
   const c = new AbortController()
   const t = setTimeout(() => c.abort(), ms)
@@ -58,7 +76,7 @@ export async function suggestAddressForPoints(points) {
     if (!pts.length) return ''
     const lat = pts.reduce((s, p) => s + Number(p.lat), 0) / pts.length
     const lon = pts.reduce((s, p) => s + Number(p.lng), 0) / pts.length
-    if (MAP_IR_KEY) {
+    if (MAP_IR_KEY && !MAP_IR_EXPIRED) {
       try {
         const d = String(await reverseMapIr(lat, lon) || '').trim()
         if (d) return d

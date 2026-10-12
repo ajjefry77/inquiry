@@ -31,6 +31,7 @@
               key="done"
               :geometry="geometry"
               :form="form"
+              :shots="shots"
               @back="go('preview')"
               @restart="restart"
             />
@@ -42,7 +43,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import LandingPage from './components/LandingPage.vue'
 import WizardHeader from './components/WizardHeader.vue'
 import DrawStep from './components/steps/DrawStep.vue'
@@ -66,8 +67,42 @@ const form = reactive({ name: saved?.form?.name || '', address: saved?.form?.add
 const shots = ref(saved?.shots || null)
 
 const ids = steps.map((s) => s.id)
+
+function hashOf(s) {
+  return s === 'landing' ? '#/' : '#/' + s
+}
+
+function syncHash(replace = false) {
+  const h = hashOf(step.value)
+  if ((window.location.hash || '') === h) return
+  if (replace) window.history.replaceState(null, '', h)
+  else window.history.pushState(null, '', h)
+}
+
+// بک/فوروارد مرورگر بین مراحل حرکت می‌کند (عین کروکی)
+function applyHash() {
+  const h = (window.location.hash || '').replace(/^#\/?/, '')
+  if (!h || h === '/') {
+    step.value = 'landing'
+  } else if (ids.includes(h)) {
+    if ((h === 'preview' || h === 'done') && !geometry.value?.type) {
+      syncHash(true)
+      return
+    }
+    if (h === 'done' && !shots.value) {
+      step.value = 'preview'
+      reachedIndex.value = Math.max(reachedIndex.value, ids.indexOf('preview'))
+      syncHash(true)
+      return
+    }
+    reachedIndex.value = Math.max(reachedIndex.value, ids.indexOf(h))
+    step.value = h
+  }
+  persist()
+}
+
 function go(id) {
-  if (id === 'landing') { step.value = 'landing'; persist(); return }
+  if (id === 'landing') { step.value = 'landing'; persist(); syncHash(); return }
   if (!ids.includes(id)) return
   const idx = ids.indexOf(id)
   if ((id === 'preview' || id === 'done') && !geometry.value?.type) return
@@ -75,8 +110,9 @@ function go(id) {
   reachedIndex.value = Math.max(reachedIndex.value, idx)
   step.value = id
   persist()
+  syncHash()
 }
-function goHome() { step.value = 'landing'; persist() }
+function goHome() { step.value = 'landing'; persist(); syncHash() }
 
 function onDrawSubmit(s) {
   if (s) shots.value = s
@@ -97,15 +133,28 @@ function persist() {
   clearTimeout(t)
   t = setTimeout(() => {
     try {
+      // shots عکسی (dataURL چند مگابایتی) در localStorage جا نمی‌شود و باعث
+      // QuotaExceeded می‌شود؛ پس فقط مرحله/هندسه/فرم ذخیره می‌شود.
       localStorage.setItem('inquiry-session', JSON.stringify({
         step: step.value, reachedIndex: reachedIndex.value,
-        geometry: geometry.value, form: { ...form }, shots: shots.value,
+        geometry: geometry.value, form: { ...form },
       }))
     } catch {}
   }, 250)
 }
 watch([geometry, shots], persist, { deep: true })
 watch(form, persist, { deep: true })
+
+onMounted(() => {
+  // اگر لینک با هشتگ باز شد، همان مرحله؛ وگرنه مرحله ذخیره‌شده
+  if (window.location.hash && window.location.hash !== '#/') applyHash()
+  else syncHash(true)
+  window.addEventListener('hashchange', applyHash)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('hashchange', applyHash)
+})
 </script>
 
 <style>

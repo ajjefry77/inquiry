@@ -388,3 +388,21 @@ tbody tr:hover {
 }
 
 } /* end @layer components */
+
+/* ============ Print: only the sheet is printed ============ */
+@media print {
+  @page { size: A4; margin: 8mm; }
+  body { background: #fff !important; }
+  body * { visibility: hidden; }
+  [data-sheet], [data-sheet] * { visibility: visible; }
+  [data-sheet] {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+  .no-print { display: none !important; }
+}
