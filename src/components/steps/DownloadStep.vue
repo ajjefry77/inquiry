@@ -12,31 +12,33 @@
         </p>
       </div>
 
-      <!-- همان برگه پیش‌نمایش — خروجی دقیقاً همین است -->
-      <SheetView :geometry="geometry" :form="form" :shots="shots" />
-
       <!-- اقدام‌ها -->
       <div class="card !rounded-2xl no-print">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button class="btn btn-primary !py-3" :disabled="busy" @click="downloadPng">
+        <div class="max-w-md mx-auto flex flex-col gap-2 sm:gap-3">
+          <button class="btn btn-primary !py-3 w-full" :disabled="busy" @click="downloadPng">
             <i v-if="busy" class="fas fa-sync-alt fa-spin ml-1"></i>
             <i v-else class="fas fa-image ml-1"></i>
             {{ busy ? 'در حال ساخت تصویر...' : 'دانلود تصویر (PNG)' }}
           </button>
-          <button class="btn btn-ghost !py-3" @click="print">
+          <button class="btn btn-ghost !py-3 w-full" @click="print">
             <i class="fas fa-print ml-1"></i>
             چاپ / ذخیره PDF
           </button>
         </div>
-        <div class="flex gap-2 justify-center mt-3">
-          <button class="btn btn-ghost btn-sm" @click="$emit('back')">
+        <div class="flex flex-wrap gap-2 justify-center mt-3">
+          <button class="btn btn-ghost btn-sm w-auto" @click="$emit('back')">
             <i class="fas fa-arrow-right ml-1"></i> بازگشت به پیش‌نمایش
           </button>
-          <button class="btn btn-ghost btn-sm" @click="$emit('restart')">
+          <button class="btn btn-ghost btn-sm w-auto" @click="$emit('restart')">
             <i class="fas fa-plus ml-1"></i> استعلام جدید
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- برگه فقط برای خروجی (روی صفحه دیده نمی‌شود؛ چاپ و PNG از همین ساخته می‌شود) -->
+    <div ref="sheetWrap" class="sheet-export">
+      <SheetView :geometry="geometry" :form="form" :shots="shots" />
     </div>
   </div>
 </template>
@@ -54,6 +56,7 @@ const props = defineProps({
 defineEmits(['back', 'restart'])
 
 const busy = ref(false)
+const sheetWrap = ref(null)
 
 // فونت وزیرمتن روی گوگل‌فونت است و html-to-image با خواندن مستقیم
 // document.styleSheets (cssRules) به خطای CORS می‌خورد:
@@ -110,12 +113,12 @@ function waitForImages(root) {
   }))
 }
 
-// خروجی PNG دقیقاً از روی همان برگه رندرشده (رندر واقعی مرورگر)
+// خروجی PNG از روی برگه مخفی (رندر واقعی مرورگر، بدون نمایش به کاربر)
 async function downloadPng() {
   if (busy.value) return
   busy.value = true
   try {
-    const sheet = document.querySelector('[data-sheet]')
+    const sheet = sheetWrap.value?.querySelector('[data-sheet]') || document.querySelector('[data-sheet]')
     if (!sheet) { window.print(); return }
     if (!props.shots?.street && !props.shots?.satellite) {
       alert('تصویری برای دانلود نیست. به مرحله ترسیم برگردید و دوباره «ثبت و ادامه» را بزنید.')
@@ -166,5 +169,26 @@ function print() { window.print() }
 @keyframes popIn {
   from { opacity: 0; transform: scale(0.85); }
   to { opacity: 1; transform: scale(1); }
+}
+/* برگه خروجی روی صفحه دیده نمی‌شود ولی رندر می‌شود تا PNG/چاپ از آن ساخته شود */
+/* نکته: visibility/opacity صفر نگذاشتیم چون html-to-image همان را کپی می‌کند و خروجی سفید می‌شود؛
+   فقط بیرون از دید (off-screen) رندر می‌شود */
+.sheet-export {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 800px;
+  max-height: 100vh;
+  overflow: hidden;
+  pointer-events: none;
+}
+@media print {
+  .sheet-export {
+    position: static;
+    left: auto;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+  }
 }
 </style>

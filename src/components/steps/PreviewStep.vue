@@ -28,12 +28,12 @@
         <SheetView :geometry="geometry" :form="form" :shots="shots" />
       </div>
 
-      <div class="flex gap-2">
-        <button class="btn btn-ghost flex-1" @click="$emit('back')">
+      <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+        <button class="btn btn-ghost px-6 sm:min-w-[170px]" @click="$emit('back')">
           <i class="fas fa-arrow-right ml-1"></i>
           بازگشت
         </button>
-        <button class="btn btn-primary flex-1" @click="$emit('next')">
+        <button class="btn btn-primary px-6 sm:min-w-[210px]" @click="$emit('next')">
           <i class="fas fa-download ml-1"></i>
           ادامه به دانلود
         </button>
