@@ -17,7 +17,7 @@
       </div>
 
       <!-- برگه استعلام -->
-      <div data-sheet class="card !rounded-2xl !p-3">
+      <div class="card !rounded-2xl !p-3">
         <div class="flex items-center justify-between px-1 mb-2">
           <span class="text-xs font-semibold flex items-center gap-1.5">
             <i class="fas fa-stamp text-[var(--accent)]"></i>
@@ -25,60 +25,53 @@
           </span>
         </div>
 
-        <div class="rounded-xl border border-[var(--border)] overflow-hidden bg-white">
-          <div class="px-5 py-3 border-b-2 border-[#1d3a6e] flex items-center justify-between bg-[var(--surface2)]">
-            <div class="flex items-center gap-2.5">
-              <img src="/favicon.png" alt="" class="w-9 h-9 rounded-lg object-contain" />
-              <div>
-                <div class="font-extrabold text-sm">برگه استعلام کاربری</div>
-                <div class="text-[10px] text-[var(--text-muted)]">سامانه استعلام</div>
-              </div>
+        <div data-sheet class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <!-- سربرگ ساده -->
+          <div class="px-5 py-3 flex items-center justify-between border-b border-slate-200">
+            <div class="flex items-center gap-2">
+              <img src="/favicon.png" alt="" class="w-8 h-8 rounded-md object-contain" />
+              <div class="font-extrabold text-sm">برگه استعلام کاربری</div>
             </div>
-            <div class="text-left">
-              <div class="text-[10px] text-[var(--text-muted)]">کاربری</div>
-              <div class="font-black text-[var(--success)]">{{ geometry.karbari || '—' }}</div>
+            <div class="text-[11px] text-slate-500">{{ date }}</div>
+          </div>
+
+          <!-- اطلاعات -->
+          <div class="px-5 py-2 text-[13px] leading-7 divide-y divide-slate-100">
+            <div class="flex gap-2 py-1.5">
+              <span class="text-slate-500 w-16 shrink-0">نام</span>
+              <span class="font-bold">{{ form.name || '—' }}</span>
+            </div>
+            <div class="flex gap-2 py-1.5">
+              <span class="text-slate-500 w-16 shrink-0">آدرس</span>
+              <span>{{ form.address || '—' }}</span>
+            </div>
+            <div class="flex gap-2 py-1.5">
+              <span class="text-slate-500 w-16 shrink-0">کاربری</span>
+              <span class="font-black text-base">{{ geometry.karbari || '—' }}</span>
+            </div>
+            <div class="flex gap-2 py-1.5">
+              <span class="text-slate-500 w-16 shrink-0">مشخصات</span>
+              <span class="text-slate-600">{{ geometry.type === 'point' ? 'نقطه' : `پلیگان (${geometry.points?.length || 0} نقطه)` }}{{ geometry.areaM2 ? ' · ' + formatArea(geometry.areaM2) : '' }}</span>
+            </div>
+            <div v-if="geometry.zones?.length > 1" class="flex gap-2 py-1.5">
+              <span class="text-slate-500 w-16 shrink-0">سایر کاربری‌ها</span>
+              <span class="text-slate-600">{{ geometry.zones.join('، ') }}</span>
             </div>
           </div>
 
-          <div class="px-5 py-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-xs">
-            <div class="flex items-center justify-between bg-[var(--surface2)] rounded-lg px-3 py-2">
-              <span class="text-[var(--text-muted)]">نام</span>
-              <span class="font-medium">{{ form.name || '—' }}</span>
-            </div>
-            <div class="flex items-center justify-between bg-[var(--surface2)] rounded-lg px-3 py-2">
-              <span class="text-[var(--text-muted)]">نوع ترسیم</span>
-              <span class="font-medium">{{ geometry.type === 'point' ? 'نقطه' : geometry.type === 'polygon' ? `پلیگان (${geometry.points?.length || 0} نقطه)` : '—' }}</span>
-            </div>
-            <div class="flex items-center justify-between bg-[var(--surface2)] rounded-lg px-3 py-2 sm:col-span-2">
-              <span class="text-[var(--text-muted)]">آدرس</span>
-              <span class="font-medium text-left">{{ form.address || '—' }}</span>
-            </div>
-            <div v-if="geometry.areaM2" class="flex items-center justify-between bg-[var(--surface2)] rounded-lg px-3 py-2">
-              <span class="text-[var(--text-muted)]">مساحت تقریبی</span>
-              <span class="font-medium">{{ formatArea(geometry.areaM2) }}</span>
-            </div>
-            <div v-if="geometry.center" class="flex items-center justify-between bg-[var(--surface2)] rounded-lg px-3 py-2">
-              <span class="text-[var(--text-muted)]">مختصات</span>
-              <span class="font-medium" dir="ltr">{{ geometry.center.lng.toFixed(6) }}, {{ geometry.center.lat.toFixed(6) }}</span>
-            </div>
-            <div v-if="geometry.zones?.length > 1" class="flex items-center justify-between bg-[var(--surface2)] rounded-lg px-3 py-2 sm:col-span-2">
-              <span class="text-[var(--text-muted)]">کاربری‌های متقاطع</span>
-              <span class="font-medium">{{ geometry.zones.join('، ') }}</span>
-            </div>
-          </div>
-
-          <div class="px-5 pb-3 grid sm:grid-cols-2 gap-3">
-            <figure class="rounded-xl overflow-hidden border border-[var(--border)]">
-              <img :src="shots?.satellite" alt="تصویر ماهواره‌ای" class="w-full h-56 object-cover bg-[var(--surface2)]" />
-              <figcaption class="text-[11px] font-semibold text-center py-1.5 bg-[var(--surface2)] border-t border-[var(--border)]">تصویر ماهواره‌ای</figcaption>
+          <!-- تصاویر: نقشه خیابان بزرگ‌تر از ماهواره‌ای -->
+          <div class="px-5 pb-3 grid grid-cols-1 sm:grid-cols-5 gap-3">
+            <figure class="sm:col-span-3 rounded-lg overflow-hidden border border-slate-200">
+              <div class="text-center text-[11px] text-slate-500 py-1.5 border-b border-slate-100">نقشه خیابان (گوگل‌مپ)</div>
+              <img :src="shots?.street" alt="نقشه خیابان" class="w-full h-64 object-cover bg-slate-50" />
             </figure>
-            <figure class="rounded-xl overflow-hidden border border-[var(--border)]">
-              <img :src="shots?.street" alt="نقشه خیابان" class="w-full h-56 object-cover bg-[var(--surface2)]" />
-              <figcaption class="text-[11px] font-semibold text-center py-1.5 bg-[var(--surface2)] border-t border-[var(--border)]">نقشه خیابان</figcaption>
+            <figure class="sm:col-span-2 rounded-lg overflow-hidden border border-slate-200">
+              <div class="text-center text-[11px] text-slate-500 py-1.5 border-b border-slate-100">تصویر ماهواره‌ای</div>
+              <img :src="shots?.satellite" alt="تصویر ماهواره‌ای" class="w-full h-64 object-cover bg-slate-50" />
             </figure>
           </div>
 
-          <div class="mx-5 mb-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] font-bold text-center leading-6 px-4 py-2">
+          <div class="px-5 py-2.5 border-t border-slate-200 text-center text-[11px] text-slate-500">
             این استعلام رسمی نیست و برای اخذ استعلام رسمی به شهرداری مراجعه کنید.
           </div>
         </div>

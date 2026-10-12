@@ -47,6 +47,10 @@
           <div>
             <label class="block mb-1 text-xs text-[var(--text-muted)]">آدرس *</label>
             <textarea v-model="form.address" rows="2" class="input !py-1.5 text-xs resize-none" placeholder="نشانی ملک را بنویسید"></textarea>
+            <p v-if="fetchingAddr" class="text-[10px] text-[var(--text-faint)] mt-1 flex items-center gap-1">
+              <i class="fas fa-sync-alt fa-spin"></i>
+              در حال گرفتن آدرس از نقشه... (قابل ویرایش است)
+            </p>
           </div>
 
           <!-- کاربری استعلام‌شده -->
@@ -90,13 +94,43 @@
         </div>
       </aside>
     </main>
+
+    <!-- مودال پیشرفت آماده‌سازی -->
+    <Transition name="modal">
+      <div
+        v-if="progress.show"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-[2px] p-4"
+      >
+        <div class="card !rounded-2xl max-w-sm w-full text-center">
+          <div v-if="!progress.error" class="w-14 h-14 mx-auto rounded-full bg-[var(--accent-glow)] border border-[var(--accent)]/30 flex items-center justify-center mb-4">
+            <i class="fas fa-sync-alt fa-spin text-xl text-[var(--accent)]"></i>
+          </div>
+          <div v-else class="w-14 h-14 mx-auto rounded-full bg-[var(--danger-glow)] border border-[var(--danger)]/30 flex items-center justify-center mb-4">
+            <i class="fas fa-triangle-exclamation text-xl text-[var(--danger)]"></i>
+          </div>
+          <h3 class="font-bold text-sm mb-1">در حال آماده‌سازی پیش‌نمایش</h3>
+          <p class="text-[11px] text-[var(--text-muted)] mb-4">{{ progress.label }}</p>
+          <div v-if="!progress.error" class="h-2.5 rounded-full bg-[var(--surface3)] border border-[var(--border)] overflow-hidden mb-2">
+            <div
+              class="h-full rounded-full bg-gradient-to-l from-[var(--accent-soft)] to-[var(--accent)] transition-[width] duration-300"
+              :style="{ width: progress.percent + '%' }"
+            ></div>
+          </div>
+          <div v-if="!progress.error" class="text-[11px] font-bold text-[var(--accent-soft)] mb-1">{{ progress.percent }}٪</div>
+          <button v-if="progress.error" class="btn btn-ghost btn-sm mt-2" @click="progress.show = false">
+            بستن
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import MapView from '../MapView.vue'
 import { formatArea } from '../../utils/geo.js'
+import { suggestAddressForPoints } from '../../utils/address.js'
 
 const props = defineProps({
   geometry: { type: Object, required: true },
@@ -107,6 +141,32 @@ const emit = defineEmits(['update:geometry', 'submit', 'back'])
 const mapRef = ref(null)
 const capturing = ref(false)
 const shots = ref(null)
+const progress = ref({ show: false, percent: 0, label: '', error: false })
+const fetchingAddr = ref(false)
+
+// آدرس خودکار از map.ir؛ فقط اگر کاربر چیزی ننوشته باشد.
+// فیلد همیشه قابل ویرایش است.
+let addrSig = ''
+watch(
+  () => props.geometry,
+  async (g) => {
+    if (!g?.type || !g.points?.length) return
+    if (String(props.form?.address || '').trim()) return
+    const sig = JSON.stringify(g.points)
+    if (sig === addrSig) return
+    addrSig = sig
+    fetchingAddr.value = true
+    try {
+      const auto = await suggestAddressForPoints(g.points)
+      if (auto && !String(props.form?.address || '').trim()) {
+        props.form.address = auto
+      }
+    } finally {
+      fetchingAddr.value = false
+    }
+  },
+  { deep: true, immediate: true },
+)
 
 const geometry = computed({
   get: () => props.geometry,
@@ -128,9 +188,17 @@ function onSnapshots(s) { shots.value = s }
 async function submit() {
   if (!canContinue.value || capturing.value) return
   capturing.value = true
+  progress.value = { show: true, percent: 0, label: 'شروع...', error: false }
   try {
-    const s = await mapRef.value?.captureBoth()
+    const s = await mapRef.value?.captureBoth((p) => {
+      progress.value.percent = p.percent
+      progress.value.label = p.label
+    })
+    progress.value.show = false
     emit('submit', s || shots.value)
+  } catch (e) {
+    progress.value.error = true
+    progress.value.label = 'خطا در آماده‌سازی. دوباره تلاش کنید.'
   } finally {
     capturing.value = false
   }

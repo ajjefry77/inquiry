@@ -193,7 +193,7 @@ function finishPolygon() {
   renderDraft(); renderFinal(); pushResult()
   tool.value = ''
   if (map) map.getCanvas().style.cursor = ''
-  try { fitToGeometry() } catch {}
+  try { zoomToGeometry() } catch {}
 }
 
 function clearAll() {
@@ -203,11 +203,30 @@ function clearAll() {
   renderDraft(); renderFinal(); pushResult()
 }
 
-function fitToGeometry() {
-  const pts = point.value ? [point.value] : polygon.value
-  if (!pts.length) return
-  const lngs = pts.map((p) => p.lng), lats = pts.map((p) => p.lat)
-  map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 90, maxZoom: 18, duration: 600 })
+function zoomToGeometry() {
+  return new Promise((resolve) => {
+    const pts = point.value ? [point.value] : polygon.value
+    if (!pts.length || !map) { resolve(); return }
+    let done = false
+    const finish = () => { if (!done) { done = true; resolve() } }
+    try {
+      map.once('moveend', finish)
+      if (point.value) {
+        map.easeTo({
+          center: [point.value.lng, point.value.lat],
+          zoom: Math.max(map.getZoom(), 18.5),
+          duration: 700,
+        })
+      } else {
+        const lngs = pts.map((p) => p.lng), lats = pts.map((p) => p.lat)
+        map.fitBounds(
+          [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+          { padding: 50, maxZoom: 19.5, duration: 700 },
+        )
+      }
+    } catch { finish(); return }
+    setTimeout(finish, 2500)
+  })
 }
 
 function onMapClick(e) {
@@ -291,28 +310,48 @@ function switchBasemap(kind) {
 }
 
 // کپچر هر دو زمینه برای پیش‌نمایش/دانلود
-async function captureBoth() {
+async function captureBoth(onProgress) {
+  const prog = (percent, label) => {
+    try { onProgress && onProgress({ percent, label }) } catch {}
+  }
   const shots = {}
+  // ۱) زوم روی محدوده ترسیم تا کادر عکس دقیقاً همان قسمت باشد
+  prog(5, 'زوم روی محدوده ترسیم...')
+  await zoomToGeometry()
+  // ۲) تصویر ماهواره‌ای (با ترسیم روی آن)
   if (basemap.value !== 'satellite') await switchBasemap('satellite')
-  await waitIdle()
+  renderFinal()
+  prog(35, 'برداشت تصویر ماهواره‌ای...')
+  await waitForTiles()
   shots.satellite = map.getCanvas().toDataURL('image/png')
-  shots.satCenter = map.getCenter().toArray()
-  shots.satZoom = map.getZoom()
+  // ۳) تصویر نقشه خیابان (ترسیم دوباره روی استایل جدید رندر می‌شود)
+  prog(60, 'تعویض به نقشه خیابان...')
   await switchBasemap('street')
-  await waitIdle()
-  // ترسیم روی استایل خیابان هم هست چون دوباره رندر شد
+  renderFinal()
+  prog(80, 'برداشت تصویر نقشه خیابان...')
+  await waitForTiles()
   shots.street = map.getCanvas().toDataURL('image/png')
+  prog(92, 'بازگشت به نقشه ماهواره‌ای...')
   await switchBasemap('satellite')
+  renderFinal()
+  prog(100, 'تمام شد')
   emit('snapshots', shots)
   return shots
 }
 
-function waitIdle() {
+// صبر می‌کند تا همه تایل‌ها واقعاً لود شوند تا عکس ناقص نیفتد
+function waitForTiles(timeout = 9000) {
   return new Promise((resolve) => {
-    let done = false
-    const finish = () => { if (!done) { done = true; try { map.off('idle', finish) } catch {}; resolve() } }
-    try { map.on('idle', finish) } catch { resolve(); return }
-    setTimeout(finish, 2500)
+    const start = Date.now()
+    const check = () => {
+      try {
+        const tilesOk = typeof map.areTilesLoaded === 'function' ? map.areTilesLoaded() : true
+        if (map.loaded() && tilesOk) return resolve()
+      } catch {}
+      if (Date.now() - start > timeout) return resolve()
+      setTimeout(check, 200)
+    }
+    check()
   })
 }
 
