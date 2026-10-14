@@ -2,6 +2,23 @@
   <div class="relative w-full h-full min-h-[inherit] overflow-hidden bg-slate-200">
     <div ref="mapEl" class="absolute inset-0"></div>
 
+    <!-- لودر تمام‌صفحه: تا وقتی نقشه + لایه کاربری از ژئوسرور کامل لود نشده، کل نقشه پوشیده است -->
+    <Transition name="fade">
+      <div
+        v-if="showLoader"
+        class="absolute inset-0 z-[700] flex flex-col items-center justify-center gap-3 bg-[var(--bg)]/95 backdrop-blur-sm"
+      >
+        <div class="w-14 h-14 rounded-full border-4 border-[var(--border)] border-t-[var(--accent)] animate-spin"></div>
+        <div class="font-bold text-sm flex items-center gap-2">
+          <i class="fas fa-layer-group text-[var(--accent)]"></i>
+          در حال بارگذاری نقشه و لایه کاربری...
+        </div>
+        <div class="text-[11px] text-[var(--text-muted)]">
+          لایه {{ zoningLayer }} از ژئوسرور
+        </div>
+      </div>
+    </Transition>
+
     <!-- تولبار ابزار ترسیم -->
     <div class="absolute top-12 sm:top-3 left-3 z-20">
       <div class="flex flex-col rounded-xl shadow-lg p-1.5 sm:p-2 gap-1.5 bg-white/90 sm:bg-white/10 backdrop-blur-md border border-white/20">
@@ -71,10 +88,13 @@
     </div>
 
     <div v-if="zoningLoading" class="absolute bottom-3 left-3 z-20 bg-black/60 text-white text-[11px] px-2.5 py-1.5 rounded-lg">
-      در حال بارگذاری لایه کاربری...
+      در حال بارگذاری لایه کاربری ({{ zoningLayer }})...
+    </div>
+    <div v-else-if="zoningError" class="absolute bottom-3 left-3 z-20 bg-red-600/85 text-white text-[10px] px-2.5 py-1.5 rounded-lg hidden sm:block">
+      خطا در لایه کاربری: {{ zoningError }}
     </div>
     <div v-else class="absolute bottom-3 left-3 z-20 bg-black/55 text-white text-[10px] px-2.5 py-1.5 rounded-lg hidden sm:block">
-      لایه کاربری: فعال (نامرئی) — {{ zoneCount }} زون
+      لایه کاربری {{ zoningLayer }}: فعال (نامرئی) — {{ zoneCount }} زون
     </div>
   </div>
 </template>
@@ -83,7 +103,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { loadMapbox } from '../utils/loadMapbox.js'
-import { loadZoning, queryPoint, queryPolygon } from '../utils/zoning.js'
+import { loadZoning, queryPoint, queryPolygon, getZoningInfo, ZONING_LAYER } from '../utils/zoning.js'
 import { polygonAreaM2 } from '../utils/geo.js'
 
 const props = defineProps({
@@ -100,8 +120,13 @@ const draft = ref([]) // نقاط پیش‌نویس پلیگان
 const point = ref(props.modelValue?.type === 'point' ? { ...props.modelValue.points[0] } : null)
 const polygon = ref(props.modelValue?.type === 'polygon' ? [...props.modelValue.points] : [])
 const basemap = ref('satellite')
+const mapBooting = ref(true)
 const zoningLoading = ref(true)
 const zoneCount = ref(0)
+const zoningLayer = ref(ZONING_LAYER)
+const zoningError = ref('')
+
+const showLoader = computed(() => mapBooting.value || zoningLoading.value)
 
 const SRC = 'inquiry-draw'
 const DRAFT_SRC = 'inquiry-draft'
@@ -167,6 +192,7 @@ function pushResult() {
 
 // ---------- ابزار ----------
 function setTool(id) {
+  if (showLoader.value) return
   tool.value = tool.value === id ? '' : id
   draft.value = []
   renderDraft()
@@ -230,6 +256,7 @@ function zoomToGeometry() {
 }
 
 function onMapClick(e) {
+  if (showLoader.value) return
   if (e.originalEvent?.button !== undefined && e.originalEvent.button !== 0) return
   const lngLat = { lng: e.lngLat.lng, lat: e.lngLat.lat }
   if (tool.value === 'point') {
@@ -356,11 +383,49 @@ function waitForTiles(timeout = 9000) {
 }
 
 // ---------- init ----------
+// مرکز پیش‌فرض: محدوده زون لایه (مشهد) — نه تهران
+const DEFAULT_CENTER = [59.388, 36.32]
+const DEFAULT_ZOOM = 12.5
+
+// باکس محدوده همه فیچرهای لایه (برای زوم اولیه روی زون)
+function boundsOfZoning(gj) {
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+  const walk = (coords) => {
+    if (!Array.isArray(coords)) return
+    if (typeof coords[0] === 'number') {
+      const [lng, lat] = coords
+      if (Number.isFinite(lng) && Number.isFinite(lat)) {
+        if (lng < minLng) minLng = lng
+        if (lat < minLat) minLat = lat
+        if (lng > maxLng) maxLng = lng
+        if (lat > maxLat) maxLat = lat
+      }
+      return
+    }
+    for (const c of coords) walk(c)
+  }
+  for (const f of gj?.features || []) {
+    if (f?.geometry?.coordinates) walk(f.geometry.coordinates)
+  }
+  if (!Number.isFinite(minLng)) return null
+  return [[minLng, minLat], [maxLng, maxLat]]
+}
+
+function zoomToLayerBounds(gj) {
+  try {
+    const b = boundsOfZoning(gj)
+    if (!b || !map) return
+    map.fitBounds(b, { padding: 40, duration: 0 })
+  } catch {}
+}
 onMounted(async () => {
   try {
     mapboxgl = await loadMapbox()
   } catch (e) {
     console.error('load mapbox failed', e)
+    mapBooting.value = false
+    zoningLoading.value = false
+    zoningError.value = 'خطا در بارگذاری موتور نقشه'
     return
   }
   // توکن برای فونت لیبل‌های نقشه لازم است
@@ -368,21 +433,31 @@ onMounted(async () => {
   map = new mapboxgl.Map({
     container: mapEl.value,
     style: styleFor('satellite'),
-    center: [51.42, 35.71],
-    zoom: 13,
+    center: [...DEFAULT_CENTER],
+    zoom: DEFAULT_ZOOM,
     attributionControl: false,
     preserveDrawingBuffer: true,
   })
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right')
   map.on('load', async () => {
+    mapBooting.value = false
     ensureSources(); renderFinal()
     emit('mapReady', { map })
-    // لایه کاربری: فقط دیتا — هیچ لایه مرئی اضافه نمی‌شود
+    // لایه کاربری از ژئوسرور (myworkspace:roads): فقط دیتا — هیچ لایه مرئی اضافه نمی‌شود
     try {
-      const gj = await loadZoning('/zoning.geojson')
-      zoneCount.value = gj.features?.length || 0
+      const gj = await loadZoning()
+      const info = getZoningInfo()
+      zoningLayer.value = info.layer
+      zoneCount.value = info.count || gj.features?.length || 0
+      // زوم اولیه: اگر ترسیم ذخیره‌شده داریم روی همان، وگرنه روی باکس کل زون لایه
+      if (point.value || polygon.value.length >= 3) {
+        try { await zoomToGeometry() } catch {}
+      } else {
+        zoomToLayerBounds(gj)
+      }
     } catch (e) {
       console.error(e)
+      zoningError.value = e?.message || 'خطا در اتصال به ژئوسرور'
     } finally {
       zoningLoading.value = false
     }

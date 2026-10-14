@@ -1,25 +1,95 @@
 import { pointInPolygonFeature, centroidOf } from './geo.js'
 
-// لایه کاربری — عمداً نامرئی.
-// دیتا از سرور (فعلاً لوکال: /zoning.geojson) لود می‌شود، روی نقشه هیچ تغییری
-// ایجاد نمی‌کند و فقط برای استعلام کاربری نقطه/پلیگان کوئری می‌شود.
-// بعداً کافی است URL این فایل با اندپوینت واقعی سرور جایگزین شود.
-let cache = null
+// لایه کاربری از ژئوسرور خوانده می‌شود (نامرئی روی نقشه).
+// پیش‌فرض: http://mapiq.ir:8080/geoserver — لایه myworkspace:roads — فیلد karbari
+// تنظیمات از env می‌آیند (VITE_GEOSERVER_URL / VITE_ZONING_LAYER / VITE_ZONING_FIELD).
+// در dev برای دور زدن CORS از پراکسی نسبی /geoserver استفاده می‌شود (vite.config.js).
+// اگر ژئوسرور در دسترس نباشد، به فایل لوکال /zoning.geojson برمی‌گردیم تا اپ از کار نیفتد.
 
-export async function loadZoning(url = '/zoning.geojson') {
-  if (cache) return cache
-  const res = await fetch(url)
-  if (!res.ok) throw new Error('خطا در بارگذاری لایه کاربری: ' + res.status)
-  const gj = await res.json()
-  cache = gj
-  return gj
+const GEOSERVER_URL = import.meta.env.VITE_GEOSERVER_URL || '/geoserver'
+const ABSOLUTE_GEOSERVER = 'http://mapiq.ir:8080/geoserver'
+export const ZONING_LAYER = import.meta.env.VITE_ZONING_LAYER || 'myworkspace:roads'
+export const ZONING_FIELD = import.meta.env.VITE_ZONING_FIELD || 'karbari'
+
+let cache = null
+let sourceInfo = { source: 'none', layer: ZONING_LAYER, count: 0 }
+
+export function getZoningInfo() {
+  return { ...sourceInfo }
 }
 
-export function clearZoningCache() { cache = null }
+function wfsUrl(base) {
+  const b = String(base || '').replace(/\/$/, '')
+  const params = new URLSearchParams({
+    service: 'WFS',
+    version: '1.0.0',
+    request: 'GetFeature',
+    typeName: ZONING_LAYER,
+    outputFormat: 'application/json',
+    srsName: 'EPSG:4326',
+  })
+  return `${b}/wfs?${params.toString()}`
+}
+
+function candidateBases(explicit) {
+  const list = []
+  if (explicit && !explicit.includes('zoning.geojson')) list.push(null) // handled by caller
+  if (GEOSERVER_URL) list.push(GEOSERVER_URL)
+  // پراکسی نسبی همیشه کاندید دوم است (وقتی base مطلق http است و صفحه https/CORS خطا می‌دهد)
+  if (GEOSERVER_URL !== '/geoserver') list.push('/geoserver')
+  if (!list.includes(ABSOLUTE_GEOSERVER)) list.push(ABSOLUTE_GEOSERVER)
+  return list
+}
+
+export async function loadZoning(url) {
+  if (cache) return cache
+  // سازگاری با صدای قدیمی loadZoning('/zoning.geojson')
+  if (url && url !== '/zoning.geojson') {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('خطا در بارگذاری لایه کاربری: ' + res.status)
+    cache = await res.json()
+    sourceInfo = { source: url, layer: ZONING_LAYER, count: cache.features?.length || 0 }
+    return cache
+  }
+
+  const bases = url === '/zoning.geojson' ? [] : candidateBases()
+  let lastErr = null
+  for (const base of bases) {
+    const wfs = wfsUrl(base)
+    try {
+      const res = await fetch(wfs)
+      if (!res.ok) throw new Error('WFS ' + res.status)
+      const gj = await res.json()
+      if (!gj?.features) throw new Error('پاسخ نامعتبر ژئوسرور')
+      cache = gj
+      sourceInfo = { source: wfs, layer: ZONING_LAYER, count: gj.features?.length || 0 }
+      return cache
+    } catch (e) {
+      lastErr = e
+    }
+  }
+
+  // فالبک لوکال (mock) — اپ از کار نمی‌افتد
+  try {
+    const res = await fetch('/zoning.geojson')
+    if (!res.ok) throw lastErr || new Error('خطا در بارگذاری لایه کاربری: ' + res.status)
+    const gj = await res.json()
+    cache = gj
+    sourceInfo = { source: '/zoning.geojson (fallback)', layer: ZONING_LAYER, count: gj.features?.length || 0 }
+    return cache
+  } catch (e) {
+    throw lastErr || e
+  }
+}
+
+export function clearZoningCache() {
+  cache = null
+  sourceInfo = { source: 'none', layer: ZONING_LAYER, count: 0 }
+}
 
 function zoneLabel(f) {
   const p = f.properties || {}
-  return p.karbari || p.usage || p.name || 'نامشخص'
+  return p[ZONING_FIELD] || p.karbari || p.usage || p.name || 'نامشخص'
 }
 
 // نقطه -> کاربری
